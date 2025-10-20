@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Behavioral Bias Bingo Hunt</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            position: absolute;
+            animation: fall 3s linear;
+        }
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="app"></div>
+
+    <script>
+        const biases = [
+            { id: 1, name: "Anchoring", description: "First price sets reference", example: "Was $99, Now $49" },
+            { id: 2, name: "Social Proof", description: "Others are doing it", example: "10,000+ customers" },
+            { id: 3, name: "Scarcity", description: "Limited availability", example: "Only 3 left!" },
+            { id: 4, name: "Loss Aversion", description: "Fear of missing out", example: "Don't lose your spot" },
+            { id: 5, name: "Reciprocity", description: "Give to receive", example: "Free sample" },
+            { id: 6, name: "Authority", description: "Expert endorsement", example: "Doctor recommended" },
+            { id: 7, name: "Framing", description: "How info is presented", example: "95% fat-free" },
+            { id: 8, name: "Default Effect", description: "Pre-selected option", example: "Auto-renewal checked" },
+            { id: 9, name: "Bandwagon", description: "Everyone's doing it", example: "Bestseller" },
+            { id: 10, name: "Decoy Effect", description: "Third option influences", example: "Small/Medium/Large" },
+            { id: 11, name: "Endowment", description: "Value what you try", example: "30-day free trial" },
+            { id: 12, name: "Commitment", description: "Small yes to big yes", example: "Just enter email" },
+            { id: 13, name: "Urgency", description: "Time pressure", example: "24-hour sale" },
+            { id: 14, name: "Choice Paradox", description: "Fewer options better", example: "Good/Better/Best" },
+            { id: 15, name: "Priming", description: "Subtle cues influence", example: "Luxury before price" },
+            { id: 16, name: "Confirmation", description: "Reinforces beliefs", example: "For smart shoppers" },
+            { id: 17, name: "Nostalgia", description: "Emotional past connection", example: "Since 1950" },
+            { id: 18, name: "Zero Price", description: "Free is irresistible", example: "Buy 2 Get 1 FREE" },
+            { id: 19, name: "Sunk Cost", description: "Already invested", example: "3/4 steps complete" },
+            { id: 20, name: "Peak-End Rule", description: "Last moment remembered", example: "Surprise gift" },
+            { id: 21, name: "Halo Effect", description: "One positive = all good", example: "Award-winning" },
+            { id: 22, name: "Status Quo", description: "Prefer no change", example: "Continue current plan" },
+            { id: 23, name: "Foot-in-Door", description: "Small request first", example: "1-min survey" },
+            { id: 24, name: "Rhyme-as-Reason", description: "Rhymes feel true", example: "If it fits, it ships" },
+            { id: 25, name: "Mere Exposure", description: "Familiarity breeds liking", example: "Retargeting ads" }
+        ];
+
+        class BiasBingoGame {
+            constructor() {
+                this.playerName = localStorage.getItem('biasBingo_playerName') || '';
+                this.gameStarted = localStorage.getItem('biasBingo_gameStarted') === 'true';
+                this.foundBiases = JSON.parse(localStorage.getItem('biasBingo_foundBiases') || '{}');
+                this.timeRemaining = parseInt(localStorage.getItem('biasBingo_timeRemaining') || (48 * 60 * 60));
+                this.leaderboard = JSON.parse(localStorage.getItem('biasBingo_leaderboard') || '[]');
+                this.selectedBias = null;
+                this.showLeaderboard = false;
+                this.uploadModal = false;
+                this.currentUpload = { location: '', notes: '', image: null };
+                
+                if (this.gameStarted) {
+                    this.startTimer();
+                }
+                
+                this.render();
+            }
+
+            startGame() {
+                if (this.playerName.trim()) {
+                    this.gameStarted = true;
+                    localStorage.setItem('biasBingo_playerName', this.playerName);
+                    localStorage.setItem('biasBingo_gameStarted', 'true');
+                    this.startTimer();
+                    this.render();
+                }
+            }
+
+            startTimer() {
+                setInterval(() => {
+                    if (this.timeRemaining > 0) {
+                        this.timeRemaining--;
+                        localStorage.setItem('biasBingo_timeRemaining', this.timeRemaining);
+                        const elem = document.getElementById('timer-display');
+                        if (elem) elem.textContent = this.formatTime(this.timeRemaining);
+                    }
+                }, 1000);
+            }
+
+            formatTime(seconds) {
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                return hours + 'h ' + minutes + 'm';
+            }
+
+            openUploadModal(bias) {
+                this.selectedBias = bias;
+                this.uploadModal = true;
+                this.currentUpload = { location: '', notes: '', image: null };
+                this.render();
+            }
+
+            closeUploadModal() {
+                this.uploadModal = false;
+                this.selectedBias = null;
+                this.render();
+            }
+
+            handleImageUpload(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    const self = this;
+                    reader.onload = function(e) {
+                        self.currentUpload.image = e.target.result;
+                        self.render();
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+
+            submitEvidence() {
+                if (this.currentUpload.location && this.currentUpload.image && this.selectedBias) {
+                    this.foundBiases[this.selectedBias.id] = {
+                        location: this.currentUpload.location,
+                        notes: this.currentUpload.notes,
+                        image: this.currentUpload.image,
+                        timestamp: new Date().toISOString()
+                    };
+                    localStorage.setItem('biasBingo_foundBiases', JSON.stringify(this.foundBiases));
+                    this.closeUploadModal();
+                    this.checkForWin();
+                }
+            }
+
+            checkForWin() {
+                const found = this.foundBiases;
+                const grid = [
+                    [1, 2, 3, 4, 5],
+                    [6, 7, 8, 9, 10],
+                    [11, 12, 13, 14, 15],
+                    [16, 17, 18, 19, 20],
+                    [21, 22, 23, 24, 25]
+                ];
+
+                let winType = null;
+
+                for (let i = 0; i < grid.length; i++) {
+                    if (grid[i].every(id => found[id])) {
+                        winType = 'Row ' + (i + 1);
+                        break;
+                    }
+                }
+
+                if (!winType) {
+                    for (let col = 0; col < 5; col++) {
+                        if (grid.every(row => found[row[col]])) {
+                            winType = 'Column ' + (col + 1);
+                            break;
+                        }
+                    }
+                }
+
+                if (!winType) {
+                    if ([1, 7, 13, 19, 25].every(id => found[id])) {
+                        winType = 'Diagonal';
+                    } else if ([5, 9, 13, 17, 21].every(id => found[id])) {
+                        winType = 'Diagonal';
+                    }
+                }
+
+                if (Object.keys(found).length === 25) {
+                    winType = 'BLACKOUT - Full Card!';
+                }
+
+                if (winType) {
+                    this.celebrateWin(winType);
+                }
+            }
+
+            celebrateWin(type) {
+                const score = Object.keys(this.foundBiases).length;
+                const timeTaken = (48 * 60 * 60) - this.timeRemaining;
+                
+                const newEntry = {
+                    name: this.playerName,
+                    score: score,
+                    type: type,
+                    time: timeTaken
+                };
+
+                this.leaderboard.push(newEntry);
+                this.leaderboard.sort((a, b) => b.score - a.score || a.time - b.time);
+                localStorage.setItem('biasBingo_leaderboard', JSON.stringify(this.leaderboard));
+
+                this.showConfetti();
+                alert('🎉 BINGO! You completed ' + type + '!\n\nTotal biases: ' + score + '\nTime: ' + this.formatTime(timeTaken));
+            }
+
+            showConfetti() {
+                const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff'];
+                for (let i = 0; i < 50; i++) {
+                    setTimeout(() => {
+                        const confetti = document.createElement('div');
+                        confetti.className = 'confetti';
+                        confetti.style.left = Math.random() * 100 + '%';
+                        confetti.style.background = colors[Math.floor(Math.random() * 5)];
+                        document.body.appendChild(confetti);
+                        setTimeout(() => confetti.remove(), 3000);
+                    }, i * 30);
+                }
+            }
+
+            resetGame() {
+                if (confirm('Reset all progress?')) {
+                    localStorage.clear();
+                    location.reload();
+                }
+            }
+
+            render() {
+                const app = document.getElementById('app');
+                
+                if (!this.gameStarted) {
+                    app.innerHTML = this.renderStartScreen();
+                    this.attachStartListeners();
+                } else {
+                    app.innerHTML = this.renderGameScreen();
+                    this.attachGameListeners();
+                }
+            }
+
+            renderStartScreen() {
+                return `
+                    <div class="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 flex items-center justify-center p-4">
+                        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+                            <div class="text-center mb-6">
+                                <div class="text-6xl mb-4">🎯</div>
+                                <h1 class="text-3xl font-bold text-gray-800 mb-2">Bias Bingo Hunt</h1>
+                                <p class="text-gray-600">Find real-world marketing biases in 48 hours!</p>
+                            </div>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Your Name</label>
+                                    <input type="text" id="player-name" placeholder="Enter your name" 
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"/>
+                                </div>
+                                
+                                <button id="start-game-btn" 
+                                    class="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700">
+                                    Start Hunt
+                                </button>
+                            </div>
+
+                            <div class="mt-6 p-4 bg-purple-50 rounded-lg">
+                                <h3 class="font-semibold text-purple-900 mb-2">Game Rules:</h3>
+                                <ul class="text-sm text-purple-800 space-y-1">
+                                    <li>• Find 25 behavioral biases in marketing</li>
+                                    <li>• Take photos as evidence</li>
+                                    <li>• Complete row/column/diagonal for BINGO</li>
+                                    <li>• You have 48 hours to complete</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderGameScreen() {
+                return `
+                    <div class="min-h-screen bg-gray-50 p-4">
+                        <div class="bg-white rounded-lg shadow-md p-4 mb-4">
+                            <div class="flex justify-between items-center flex-wrap gap-4">
+                                <div>
+                                    <h2 class="text-2xl font-bold text-gray-800">${this.playerName}'s Bingo Hunt</h2>
+                                    <p class="text-sm text-gray-600">Find biases and document with photos!</p>
+                                </div>
+                                
+                                <div class="flex gap-4 items-center">
+                                    <div class="text-center">
+                                        <p class="text-xs text-gray-600">Time Left</p>
+                                        <p class="font-bold text-purple-600" id="timer-display">${this.formatTime(this.timeRemaining)}</p>
+                                    </div>
+                                    
+                                    <div class="text-center">
+                                        <p class="text-xs text-gray-600">Found</p>
+                                        <p class="font-bold text-yellow-600">${Object.keys(this.foundBiases).length}/25</p>
+                                    </div>
+                                    
+                                    <button id="leaderboard-btn" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                                        Leaderboard
+                                    </button>
+                                    
+                                    <button id="reset-btn" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">
+                                        Reset
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-w-6xl mx-auto">
+                            ${biases.map(bias => this.renderBiasCard(bias)).join('')}
+                        </div>
+
+                        ${this.showLeaderboard ? this.renderLeaderboard() : ''}
+                        ${this.uploadModal ? this.renderUploadModal() : ''}
+                    </div>
+                `;
+            }
+
+            renderBiasCard(bias) {
+                const isFound = this.foundBiases[bias.id];
+                return `
+                    <div class="bias-card relative p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                        isFound ? 'bg-gradient-to-br from-green-400 to-green-600 border-green-700' : 
+                                 'bg-white border-gray-200 hover:border-purple-400 hover:shadow-lg'
+                    }" data-bias-id="${bias.id}">
+                        ${isFound ? '<div class="absolute top-1 right-1 text-white text-xl">✓</div>' : ''}
+                        <div class="text-center">
+                            <h3 class="font-bold text-sm mb-1 ${isFound ? 'text-white' : 'text-gray-800'}">
+                                ${bias.name}
+                            </h3>
+                            <p class="text-xs ${isFound ? 'text-green-50' : 'text-gray-600'}">
+                                ${bias.description}
+                            </p>
+                            ${!isFound ? '<p class="text-xs text-purple-600 mt-2 font-semibold">Tap to capture</p>' : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderLeaderboard() {
+                return `
+                    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div class="bg-white rounded-2xl p-6 max-w-md w-full max-h-96 overflow-y-auto">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-2xl font-bold text-gray-800">🏆 Leaderboard</h3>
+                                <button id="close-leaderboard" class="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+                            </div>
+                            
+                            ${this.leaderboard.length === 0 ? 
+                                '<p class="text-gray-500 text-center py-8">No winners yet!</p>' :
+                                '<div class="space-y-2">' + this.leaderboard.map((entry, i) => `
+                                    <div class="flex justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-2xl font-bold text-purple-600">#${i + 1}</span>
+                                            <div>
+                                                <p class="font-semibold">${entry.name}</p>
+                                                <p class="text-xs text-gray-600">${entry.type}</p>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="font-bold text-purple-600">${entry.score}</p>
+                                            <p class="text-xs text-gray-500">${this.formatTime(entry.time)}</p>
+                                        </div>
+                                    </div>
+                                `).join('') + '</div>'
+                            }
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderUploadModal() {
+                if (!this.selectedBias) return '';
+                
+                return `
+                    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div class="bg-white rounded-2xl p-6 max-w-md w-full max-h-screen overflow-y-auto">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-2xl font-bold">${this.selectedBias.name}</h3>
+                                <button id="close-modal" class="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+                            </div>
+
+                            <div class="mb-4 p-3 bg-purple-50 rounded-lg">
+                                <p class="text-sm text-purple-900"><strong>Look for:</strong> ${this.selectedBias.description}</p>
+                                <p class="text-xs text-purple-700 mt-1"><strong>Example:</strong> ${this.selectedBias.example}</p>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">Location/Brand *</label>
+                                    <input type="text" id="location-input" placeholder="e.g., Starbucks, Amazon" 
+                                        class="w-full px-4 py-2 border rounded-lg"/>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">Notes (optional)</label>
+                                    <textarea id="notes-input" placeholder="How does this use the bias?" rows="3"
+                                        class="w-full px-4 py-2 border rounded-lg"></textarea>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">Upload Photo *</label>
+                                    <div class="border-2 border-dashed rounded-lg p-4 text-center">
+                                        <input type="file" accept="image/*" id="image-upload" class="hidden"/>
+                                        <label for="image-upload" class="cursor-pointer block">
+                                            ${this.currentUpload.image ? 
+                                                `<img src="${this.currentUpload.image}" class="max-h-48 mx-auto rounded"/>` :
+                                                '<div class="text-4xl mb-2">📷</div><p class="text-sm text-gray-600">Click to upload</p>'
+                                            }
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <button id="submit-evidence" 
+                                    class="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 disabled:opacity-50"
+                                    ${(!this.currentUpload.location || !this.currentUpload.image) ? 'disabled' : ''}>
+                                    Submit Evidence
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            attachStartListeners() {
+                const nameInput = document.getElementById('player-name');
+                const startBtn = document.getElementById('start-game-btn');
+                const self = this;
+
+                nameInput.addEventListener('input', function(e) {
+                    self.playerName = e.target.value;
+                });
+
+                startBtn.addEventListener('click', function() {
+                    self.startGame();
+                });
+
+                nameInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') self.startGame();
+                });
+            }
+
+            attachGameListeners() {
+                const self = this;
+
+                document.querySelectorAll('.bias-card').forEach(card => {
+                    const biasId = parseInt(card.dataset.biasId);
+                    if (!self.foundBiases[biasId]) {
+                        card.addEventListener('click', function() {
+                            const bias = biases.find(b => b.id === biasId);
+                            self.openUploadModal(bias);
+                        });
+                    }
+                });
+
+                const leaderboardBtn = document.getElementById('leaderboard-btn');
+                if (leaderboardBtn) {
+                    leaderboardBtn.addEventListener('click', function() {
+                        self.showLeaderboard = true;
+                        self.render();
+                    });
+                }
+
+                const closeLeaderboard = document.getElementById('close-leaderboard');
+                if (closeLeaderboard) {
+                    closeLeaderboard.addEventListener('click', function() {
+                        self.showLeaderboard = false;
+                        self.render();
+                    });
+                }
+
+                const resetBtn = document.getElementById('reset-btn');
+                if (resetBtn) {
+                    resetBtn.addEventListener('click', function() {
+                        self.resetGame();
+                    });
+                }
+
+                if (this.uploadModal) {
+                    const closeModal = document.getElementById('close-modal');
+                    if (closeModal) {
+                        closeModal.addEventListener('click', function() {
+                            self.closeUploadModal();
+                        });
+                    }
+
+                    const locationInput = document.getElementById('location-input');
+                    if (locationInput) {
+                        locationInput.addEventListener('input', function(e) {
+                            self.currentUpload.location = e.target.value;
+                            self.updateSubmitButton();
+                        });
+                    }
+
+                    const notesInput = document.getElementById('notes-input');
+                    if (notesInput) {
+                        notesInput.addEventListener('input', function(e) {
+                            self.currentUpload.notes = e.target.value;
+                        });
+                    }
+
+                    const imageUpload = document.getElementById('image-upload');
+                    if (imageUpload) {
+                        imageUpload.addEventListener('change', function(e) {
+                            self.handleImageUpload(e);
+                        });
+                    }
+
+                    const submitBtn = document.getElementById('submit-evidence');
+                    if (submitBtn) {
+                        submitBtn.addEventListener('click', function() {
+                            self.submitEvidence();
+                        });
+                    }
+                }
+            }
+
+            updateSubmitButton() {
+                const submitBtn = document.getElementById('submit-evidence');
+                if (submitBtn) {
+                    submitBtn.disabled = !this.currentUpload.location || !this.currentUpload.image;
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            new BiasBingoGame();
+        });
+    </script>
+</body>
+</html>
